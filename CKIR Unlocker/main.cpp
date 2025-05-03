@@ -2,13 +2,13 @@
 #include <TlHelp32.h>
 #include <iostream>
 #include <io.h>
-#include <ntstatus.h>
 using namespace std;
 #define INITIALIZE_IOCTL_CODE 0x9876C004
 #define TERMINSTE_PROCESS_IOCTL_CODE 0x9876C094
 
-typedef long (NTAPI* pNtSuspendProcess)(HANDLE proccessHandle);
-pNtSuspendProcess NtSuspendProcess;
+typedef long (NTAPI* pNtProcess)(HANDLE proccessHandle);
+pNtProcess NtSuspendProcess;
+pNtProcess NtResumeProcess;
 
 void Elevate() {
     HANDLE token;
@@ -27,7 +27,8 @@ void Elevate() {
 bool LoadNT() {
     auto ntdll = GetModuleHandleA("ntdll.dll");
     if (!ntdll) return false;
-    NtSuspendProcess = (pNtSuspendProcess)GetProcAddress(ntdll, "NtSuspendProcess");
+    NtSuspendProcess = (pNtProcess)GetProcAddress(ntdll, "NtSuspendProcess");
+    NtResumeProcess = (pNtProcess)GetProcAddress(ntdll, "NtResumeProcess");
     return !!NtSuspendProcess;
 }
 
@@ -139,6 +140,25 @@ bool RemoveDriver(const char* serviceName, char* driverPath) {
     return 1;
 }
 
+class TerminateData {
+public:
+    DWORD pid;
+    bool terminated;
+    TerminateData(DWORD pid) :pid(pid), terminated(false) {}
+};
+
+BOOL CALLBACK TerminateByHWND(HWND hwnd, LPARAM lParam) {
+    DWORD pid;
+    TerminateData* data = reinterpret_cast<TerminateData*>(lParam);
+    GetWindowThreadProcessId(hwnd, &pid);
+    if (pid != data->pid) return true;
+    if (PostMessageA(hwnd, WM_CLOSE, NULL, NULL)) {
+        data->terminated = true;
+        return false;
+    }
+    return true;
+}
+
 bool TerminateProc(HANDLE terminateHandle, PROCESSENTRY32& procEntry) {
     DWORD output[2] = { 0 };
     DWORD size = sizeof(output);
@@ -148,13 +168,20 @@ bool TerminateProc(HANDLE terminateHandle, PROCESSENTRY32& procEntry) {
     }
 
 	DWORD dwExitCode = 0;
-	auto handle = OpenProcess(PROCESS_ALL_ACCESS, 0, procEntry.th32ProcessID);
-	/*if (GetExitCodeProcess(handle, &dwExitCode)) {
+	auto handle = OpenProcess(PROCESS_ALL_ACCESS, true, procEntry.th32ProcessID);
+	if (GetExitCodeProcess(handle, &dwExitCode)) {
 		if (TerminateProcess(handle, dwExitCode)) {
 			CloseHandle(handle);
 			return true;
 		}
-	}*/
+	}
+
+    TerminateData result(procEntry.th32ProcessID);
+    EnumWindows(TerminateByHWND, reinterpret_cast<long long>(&result));
+    if(result.terminated) {
+        CloseHandle(handle);
+        return true;
+    }
 
     if (NtSuspendProcess) {
         auto result = NtSuspendProcess(handle);
@@ -166,8 +193,23 @@ bool TerminateProc(HANDLE terminateHandle, PROCESSENTRY32& procEntry) {
     }
 
 	CloseHandle(handle);
-
 	return false;
+}
+
+bool ResumeProc(HANDLE resumeHandle, PROCESSENTRY32& procEntry) {
+    auto handle = OpenProcess(PROCESS_ALL_ACCESS, true, procEntry.th32ProcessID);
+
+    if (NtSuspendProcess) {
+        auto result = NtResumeProcess(handle);
+        cout << result;
+        if (result >= 0) {
+            CloseHandle(handle);
+            return true;
+        }
+    }
+
+    CloseHandle(handle);
+    return false;
 }
 
 void Unlock() {
@@ -183,21 +225,24 @@ void Unlock() {
 	do {
 		if (!wcscmp(procEntry.szExeFile, L"lqndauccd.exe") || !wcscmp(procEntry.szExeFile, L"MaestroWebSvr.exe")
 			|| !wcscmp(procEntry.szExeFile, L"qukapttp.exe") || !wcscmp(procEntry.szExeFile, L"MaestroWebAgent.exe")
-            || !wcscmp(procEntry.szExeFile, L"nfowjxyfd.exe") || !wcscmp(procEntry.szExeFile, L"notepad.exe")) {
+            || !wcscmp(procEntry.szExeFile, L"nfowjxyfd.exe")) {
 			cout << "Latest CKIR process ["; wcout << procEntry.szExeFile; cout << "] ";
 			if (TerminateProc(terminateHandle, procEntry)) cout << "KILLED\n";
+			//if (ResumeProc(terminateHandle, procEntry)) cout << "RESUME\n";
 			else cout << "KILL failed\n";
 			continue;
 		}
 		if (!wcscmp(procEntry.szExeFile, L"TDepend64.exe") || !wcscmp(procEntry.szExeFile, L"TDepend.exe")) {
 			cout << "Remote control process ["; wcout << procEntry.szExeFile; cout << "] ";
 			if (TerminateProc(terminateHandle, procEntry)) cout << "KILLED\n";
+            //if (ResumeProc(terminateHandle, procEntry)) cout << "RESUME\n";
 			else cout << "KILL failed\n";
 			continue;
 		}
 		if (!wcscmp(procEntry.szExeFile, L"rwtyijsa.exe") || !wcscmp(procEntry.szExeFile, L"nhfneczzm.exe")) {
 			cout << "Unknown process ["; wcout << procEntry.szExeFile; cout << "] ";
 			if (TerminateProc(terminateHandle, procEntry)) cout << "KILLED\n";
+            //if (ResumeProc(terminateHandle, procEntry)) cout << "RESUME\n";
 			else cout << "KILL failed\n";
 			continue;
 		}
@@ -205,6 +250,7 @@ void Unlock() {
 			|| !wcscmp(procEntry.szExeFile, L"MaestroNSvr.exe")) {
 			cout << "Legacy CKIR process ["; wcout << procEntry.szExeFile; cout << "] ";
 			if (TerminateProc(terminateHandle, procEntry)) cout << "KILLED\n";
+            //if (ResumeProc(terminateHandle, procEntry)) cout << "RESUME\n";
 			else cout << "KILL failed\n";
 			continue;
 		}
