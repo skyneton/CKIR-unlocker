@@ -6,6 +6,8 @@ using namespace std;
 #define INITIALIZE_IOCTL_CODE 0x9876C004
 #define TERMINSTE_PROCESS_IOCTL_CODE 0x9876C094
 
+#define BUILD_TYPE 0
+
 typedef long (NTAPI* pNtProcess)(HANDLE proccessHandle);
 pNtProcess NtSuspendProcess;
 pNtProcess NtResumeProcess;
@@ -176,12 +178,14 @@ bool TerminateProc(HANDLE terminateHandle, PROCESSENTRY32& procEntry) {
 		}
 	}
 
+#if BUILD_TYPE == 1
     TerminateData result(procEntry.th32ProcessID);
     EnumWindows(TerminateByHWND, reinterpret_cast<long long>(&result));
     if(result.terminated) {
         CloseHandle(handle);
         return true;
     }
+#endif
 
     if (NtSuspendProcess) {
         auto result = NtSuspendProcess(handle);
@@ -227,30 +231,42 @@ void Unlock() {
 			|| !wcscmp(procEntry.szExeFile, L"qukapttp.exe") || !wcscmp(procEntry.szExeFile, L"MaestroWebAgent.exe")
             || !wcscmp(procEntry.szExeFile, L"nfowjxyfd.exe")) {
 			cout << "Latest CKIR process ["; wcout << procEntry.szExeFile; cout << "] ";
+#if BUILD_TYPE != 2
 			if (TerminateProc(terminateHandle, procEntry)) cout << "KILLED\n";
-			//if (ResumeProc(terminateHandle, procEntry)) cout << "RESUME\n";
+#else
+			if (ResumeProc(terminateHandle, procEntry)) cout << "RESUME\n";
+#endif
 			else cout << "KILL failed\n";
 			continue;
 		}
 		if (!wcscmp(procEntry.szExeFile, L"TDepend64.exe") || !wcscmp(procEntry.szExeFile, L"TDepend.exe")) {
 			cout << "Remote control process ["; wcout << procEntry.szExeFile; cout << "] ";
-			if (TerminateProc(terminateHandle, procEntry)) cout << "KILLED\n";
-            //if (ResumeProc(terminateHandle, procEntry)) cout << "RESUME\n";
+#if BUILD_TYPE != 2
+            if (TerminateProc(terminateHandle, procEntry)) cout << "KILLED\n";
+#else
+            if (ResumeProc(terminateHandle, procEntry)) cout << "RESUME\n";
+#endif
 			else cout << "KILL failed\n";
 			continue;
 		}
 		if (!wcscmp(procEntry.szExeFile, L"rwtyijsa.exe") || !wcscmp(procEntry.szExeFile, L"nhfneczzm.exe")) {
 			cout << "Unknown process ["; wcout << procEntry.szExeFile; cout << "] ";
-			if (TerminateProc(terminateHandle, procEntry)) cout << "KILLED\n";
-            //if (ResumeProc(terminateHandle, procEntry)) cout << "RESUME\n";
+#if BUILD_TYPE != 2
+            if (TerminateProc(terminateHandle, procEntry)) cout << "KILLED\n";
+#else
+            if (ResumeProc(terminateHandle, procEntry)) cout << "RESUME\n";
+#endif
 			else cout << "KILL failed\n";
 			continue;
 		}
 		if (!wcscmp(procEntry.szExeFile, L"SoluSpSvr.exe") || !wcscmp(procEntry.szExeFile, L"MaestroNAgent.exe")
 			|| !wcscmp(procEntry.szExeFile, L"MaestroNSvr.exe")) {
 			cout << "Legacy CKIR process ["; wcout << procEntry.szExeFile; cout << "] ";
-			if (TerminateProc(terminateHandle, procEntry)) cout << "KILLED\n";
-            //if (ResumeProc(terminateHandle, procEntry)) cout << "RESUME\n";
+#if BUILD_TYPE != 2
+            if (TerminateProc(terminateHandle, procEntry)) cout << "KILLED\n";
+#else
+            if (ResumeProc(terminateHandle, procEntry)) cout << "RESUME\n";
+#endif
 			else cout << "KILL failed\n";
 			continue;
 		}
