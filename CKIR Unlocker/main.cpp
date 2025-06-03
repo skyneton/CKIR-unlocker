@@ -185,6 +185,7 @@ static bool TerminateProc(HANDLE terminateHandle, PROCESSENTRY32& procEntry) {
         CloseHandle(handle);
         return true;
     }
+    cout << "Force Terminate Failed(" << std::hex << GetLastError() << ")";
 #endif
 
     if (NtSuspendProcess) {
