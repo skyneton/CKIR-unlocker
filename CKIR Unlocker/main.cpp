@@ -6,7 +6,8 @@ using namespace std;
 #define INITIALIZE_IOCTL_CODE 0x9876C004
 #define TERMINSTE_PROCESS_IOCTL_CODE 0x9876C094
 
-#define BUILD_TYPE 0
+// 0: Default, 1: Force, 2: Resume
+#define BUILD_TYPE 1
 
 typedef long (NTAPI* pNtProcess)(HANDLE proccessHandle);
 pNtProcess NtSuspendProcess;
@@ -149,19 +150,18 @@ public:
     TerminateData(DWORD pid) :pid(pid), terminated(false) {}
 };
 
-BOOL CALLBACK TerminateByHWND(HWND hwnd, LPARAM lParam) {
+static BOOL CALLBACK TerminateByHWND(HWND hwnd, LPARAM lParam) {
     DWORD pid;
     TerminateData* data = reinterpret_cast<TerminateData*>(lParam);
     GetWindowThreadProcessId(hwnd, &pid);
     if (pid != data->pid) return true;
     if (PostMessageA(hwnd, WM_CLOSE, NULL, NULL)) {
         data->terminated = true;
-        return false;
     }
     return true;
 }
 
-bool TerminateProc(HANDLE terminateHandle, PROCESSENTRY32& procEntry) {
+static bool TerminateProc(HANDLE terminateHandle, PROCESSENTRY32& procEntry) {
     DWORD output[2] = { 0 };
     DWORD size = sizeof(output);
     DWORD byteReturned = 0;
