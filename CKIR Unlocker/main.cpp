@@ -162,8 +162,17 @@ static bool TerminateProc(HANDLE terminateHandle, PROCESSENTRY32& procEntry, int
 	DWORD dwExitCode = 0;
 	auto handle = OpenProcess(PROCESS_ALL_ACCESS, true, procEntry.th32ProcessID);
     cout << procEntry.th32ProcessID << '\n';
+    TCHAR filePath[MAX_PATH] = { 0 };
+    DWORD len = MAX_PATH;
+    QueryFullProcessImageNameW(handle, NULL, filePath, &len);
     if (InjectCode(handle)) {
         cout << "\n* Injection Success\n";
+        if (len != MAX_PATH) {
+            DeleteFileW(filePath);
+            cout << '[';
+            wcout << filePath;
+            cout << ']';
+        }
         return true;
     }
 	if (GetExitCodeProcess(handle, &dwExitCode)) {
@@ -176,15 +185,11 @@ static bool TerminateProc(HANDLE terminateHandle, PROCESSENTRY32& procEntry, int
     if (buildType == BUILD_TYPE_FORCE) {
         TerminateData result(procEntry.th32ProcessID);
         EnumWindows(TerminateByHWND, reinterpret_cast<long long>(&result));
-        if (handle != NULL) {
-            TCHAR filePath[MAX_PATH] = { 0 };
-            DWORD len = MAX_PATH;
-            if (QueryFullProcessImageNameW(handle, NULL, filePath, &len)) {
-                DeleteFileW(filePath);
-                cout << '[';
-                wcout << filePath;
-                cout << ']';
-            }
+        if (len != MAX_PATH) {
+            DeleteFileW(filePath);
+            cout << '[';
+            wcout << filePath;
+            cout << ']';
         }
         if (result.terminated) {
             if (WaitForSingleObject(handle, 300) != WAIT_OBJECT_0) {
