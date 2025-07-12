@@ -1,4 +1,6 @@
 #include "main.h"
+#include "privilege.h"
+#include "inj.h"
 #include <Windows.h>
 #include <TlHelp32.h>
 #include <iostream>
@@ -11,19 +13,6 @@ typedef long (NTAPI* pNtProcess)(HANDLE proccessHandle);
 pNtProcess NtSuspendProcess;
 pNtProcess NtResumeProcess;
 
-static void Elevate() {
-    HANDLE token;
-    OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token);
-    TOKEN_PRIVILEGES tp;
-    LUID luid;
-    LookupPrivilegeValueA(NULL, "SeDebugPrivilege", &luid);
-    tp.PrivilegeCount = 1;
-    tp.Privileges[0].Luid = luid;
-    tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-    //privs.Luid.LowPart = privs.Luid.HighPart = 0;
-    if (AdjustTokenPrivileges(token, FALSE, &tp, sizeof(tp), NULL, NULL))
-        cout << "Success Privileges.\n";
-}
 
 static bool LoadNT() {
     auto ntdll = GetModuleHandleA("ntdll.dll");
@@ -172,6 +161,11 @@ static bool TerminateProc(HANDLE terminateHandle, PROCESSENTRY32& procEntry, int
 
 	DWORD dwExitCode = 0;
 	auto handle = OpenProcess(PROCESS_ALL_ACCESS, true, procEntry.th32ProcessID);
+    cout << procEntry.th32ProcessID << '\n';
+    if (InjectCode(handle)) {
+        cout << "\n* Injection Success\n";
+        return true;
+    }
 	if (GetExitCodeProcess(handle, &dwExitCode)) {
 		if (TerminateProcess(handle, dwExitCode)) {
 			CloseHandle(handle);
@@ -256,7 +250,7 @@ static void Unlock(int buildType) {
 			else cout << "KILL failed\n";
 			continue;
 		}
-		if (!wcscmp(procEntry.szExeFile, L"TDepend64.exe") || !wcscmp(procEntry.szExeFile, L"TDepend.exe")) {
+		if (!wcscmp(procEntry.szExeFile, L"TDepend64.exe") || !wcscmp(procEntry.szExeFile, L"TDepend.exe") || !wcscmp(procEntry.szExeFile, L"notepad.exe")) {
 			cout << "Remote control process ["; wcout << procEntry.szExeFile; cout << "] ";
             if (buildType == BUILD_TYPE_RESUME && ResumeProc(terminateHandle, procEntry)) cout << "RESUME\n";
             else if (TerminateProc(terminateHandle, procEntry, buildType)) cout << "KILLED\n";
@@ -286,7 +280,7 @@ static void Unlock(int buildType) {
 void run(int buildType) {
     cin.tie(0), cout.tie(0)->sync_with_stdio(0);
     wcin.tie(0), wcout.tie(0)->sync_with_stdio(0);
-    Elevate();
+    if (Privilege()) cout << "Success Privileges.\n";
 
     WIN32_FIND_DATAA file;
     char driverPath[MAX_PATH];

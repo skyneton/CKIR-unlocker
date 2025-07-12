@@ -127,11 +127,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="inj.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="privilege.cpp" />
     <ClCompile Include="run.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="inj.h" />
     <ClInclude Include="main.h" />
+    <ClInclude Include="privilege.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
