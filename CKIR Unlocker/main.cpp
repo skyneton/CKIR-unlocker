@@ -250,7 +250,7 @@ static void Unlock(int buildType) {
 			else cout << "KILL failed\n";
 			continue;
 		}
-		if (!wcscmp(procEntry.szExeFile, L"TDepend64.exe") || !wcscmp(procEntry.szExeFile, L"TDepend.exe") || !wcscmp(procEntry.szExeFile, L"notepad.exe")) {
+		if (!wcscmp(procEntry.szExeFile, L"TDepend64.exe") || !wcscmp(procEntry.szExeFile, L"TDepend.exe")) {
 			cout << "Remote control process ["; wcout << procEntry.szExeFile; cout << "] ";
             if (buildType == BUILD_TYPE_RESUME && ResumeProc(terminateHandle, procEntry)) cout << "RESUME\n";
             else if (TerminateProc(terminateHandle, procEntry, buildType)) cout << "KILLED\n";
