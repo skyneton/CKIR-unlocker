@@ -7,7 +7,7 @@
 using namespace std;
 #define INITIALIZE_IOCTL_CODE 0x9876C004
 #define TERMINSTE_PROCESS_IOCTL_CODE 0x9876C094
-#define LOOP_COUNT 20
+#define LOOP_COUNT 50
 
 typedef long (NTAPI* pNtProcess)(HANDLE proccessHandle);
 pNtProcess NtSuspendProcess;
