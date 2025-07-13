@@ -4,7 +4,6 @@
 #include <Windows.h>
 #include <TlHelp32.h>
 #include <iostream>
-#include <io.h>
 using namespace std;
 #define INITIALIZE_IOCTL_CODE 0x9876C004
 #define TERMINSTE_PROCESS_IOCTL_CODE 0x9876C094
@@ -89,7 +88,7 @@ static PROCESSENTRY32 Find(const wchar_t* name) {
     procEntry.dwSize = sizeof(PROCESSENTRY32);
     Process32First(handle, &procEntry);
     do {
-        if (!wcscmp(procEntry.szExeFile, name)) continue;
+        if (wcscmp(procEntry.szExeFile, name)) continue;
         result = procEntry;
         break;
     } while (Process32Next(handle, &procEntry));
