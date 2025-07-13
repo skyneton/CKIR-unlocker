@@ -122,8 +122,12 @@ static void LoopKiller(const char* type, int count, const wchar_t* list[], int l
         for (int j = 0; j < count; j++) {
             p = Find(list[i]);
             if (!p.th32ProcessID) {
-                killed = 1;
-                break;
+                if (DeleteFileW(filePath)) {
+                    deleted = true;
+                }
+                //killed = 1;
+                //break;
+                continue;
             }
 
             int result = TerminateProc(p, buildType);
@@ -135,8 +139,8 @@ static void LoopKiller(const char* type, int count, const wchar_t* list[], int l
             if (length != MAX_PATH);
             if (DeleteFileW(filePath)) {
                 deleted = true;
-                killed = true;
-                break;
+                //killed = true;
+                //break;
             }
         }
 
