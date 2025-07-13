@@ -13,6 +13,12 @@ typedef long (NTAPI* pNtProcess)(HANDLE proccessHandle);
 pNtProcess NtSuspendProcess;
 pNtProcess NtResumeProcess;
 
+class TerminateData {
+public:
+    DWORD pid;
+    bool terminated;
+    TerminateData(DWORD pid) :pid(pid), terminated(false) {}
+};
 
 static bool LoadNT() {
     auto ntdll = GetModuleHandleA("ntdll.dll");
@@ -22,16 +28,24 @@ static bool LoadNT() {
     return !!NtSuspendProcess;
 }
 
+BOOL CALLBACK TerminateByHWND(HWND hwnd, LPARAM lParam) {
+    DWORD pid;
+    TerminateData* data = reinterpret_cast<TerminateData*>(lParam);
+    GetWindowThreadProcessId(hwnd, &pid);
+    if (pid != data->pid) return true;
+    if (PostMessageA(hwnd, WM_CLOSE, NULL, NULL)) {
+        data->terminated = true;
+    }
+    return true;
+}
+
 static int TerminateProc(PROCESSENTRY32& procEntry, int buildType) {
     DWORD output[2] = { 0 };
     DWORD size = sizeof(output);
     DWORD byteReturned = 0;
 
 	DWORD dwExitCode = 0;
-	auto handle = OpenProcess(PROCESS_ALL_ACCESS, false, procEntry.th32ProcessID);
-    TCHAR filePath[MAX_PATH] = { 0 };
-    DWORD len = MAX_PATH;
-    QueryFullProcessImageNameW(handle, NULL, filePath, &len);
+	auto handle = OpenProcess(PROCESS_ALL_ACCESS, true, procEntry.th32ProcessID);
     if (GetExitCodeProcess(handle, &dwExitCode)) {
         if (TerminateProcess(handle, dwExitCode)) {
             CloseHandle(handle);
@@ -40,14 +54,16 @@ static int TerminateProc(PROCESSENTRY32& procEntry, int buildType) {
     }
     if (buildType == BUILD_TYPE_FORCE) {
         if (InjectCode(handle)) {
-            cout << "\n* Injection Success\n";
-            if (len != MAX_PATH && DeleteFileW(filePath)) {
-                cout << '[';
-                wcout << filePath;
-                cout << ']';
-            }
+            //cout << "\n* Injection Success\n";
             return 1;
         }
+    }
+
+    TerminateData result(procEntry.th32ProcessID);
+    EnumWindows(TerminateByHWND, reinterpret_cast<long long>(&result));
+    if (result.terminated) {
+        CloseHandle(handle);
+        return 1;
     }
 
     if (NtSuspendProcess) {
@@ -110,8 +126,8 @@ static void LoopKiller(const char* type, int count, const wchar_t* list[], int l
         cout << "PATH: "; wcout << filePath; cout << '\n';
         if (buildType == BUILD_TYPE_RESUME) {
             cout << "Try To Resume...\n";
-            if (ResumeProc(p)) cout << "Success!\n";
-            else cout << "Failed.";
+            if (ResumeProc(p)) cout << "\033[1;32mSuccess!\033[0m\n";
+            else cout << "\033[1;31mFailed.\033[0m\n";
             continue;
         }
         bool killed = false;
@@ -132,7 +148,7 @@ static void LoopKiller(const char* type, int count, const wchar_t* list[], int l
             int result = TerminateProc(p, buildType);
             if (!result) continue;
             if (result == 2) {
-                cout << "Suspended..\n";
+                cout << "\033[1;35mSuspended..\033[0m\n";
                 break;
             }
             if (length != MAX_PATH);
@@ -147,10 +163,10 @@ static void LoopKiller(const char* type, int count, const wchar_t* list[], int l
             p = Find(list[i]);
             if (!p.th32ProcessID) killed = true;
         }
-        cout << "Kill " << (killed ? "Success" : "Failed") << "...\n";
+        cout << "Kill " << (killed ? "\033[1;32mSuccess!" : "\033[1;31mFailed...") << "\033[0m\n";
         cout << "Try To Delete Execution File...\n";
-        if (deleted) cout << "Success!\n";
-        else cout << "Failed.\n";
+        if (deleted) cout << "\033[1;32mSuccess!\033[0m\n";
+        else cout << "\033[1;31mFailed...\033[0m\n";
     }
 }
 
