@@ -1,24 +1,17 @@
 #include "main.h"
 #include "privilege.h"
 #include "inj.h"
+#include "color.h"
 #include <Windows.h>
 #include <TlHelp32.h>
-#include <iostream>
 using namespace std;
 #define INITIALIZE_IOCTL_CODE 0x9876C004
 #define TERMINSTE_PROCESS_IOCTL_CODE 0x9876C094
-#define LOOP_COUNT 50
+#define LOOP_COUNT 70
 
 typedef long (NTAPI* pNtProcess)(HANDLE proccessHandle);
 pNtProcess NtSuspendProcess;
 pNtProcess NtResumeProcess;
-
-class TerminateData {
-public:
-    DWORD pid;
-    bool terminated;
-    TerminateData(DWORD pid) :pid(pid), terminated(false) {}
-};
 
 static bool LoadNT() {
     auto ntdll = GetModuleHandleA("ntdll.dll");
@@ -26,17 +19,6 @@ static bool LoadNT() {
     NtSuspendProcess = (pNtProcess)GetProcAddress(ntdll, "NtSuspendProcess");
     NtResumeProcess = (pNtProcess)GetProcAddress(ntdll, "NtResumeProcess");
     return !!NtSuspendProcess;
-}
-
-BOOL CALLBACK TerminateByHWND(HWND hwnd, LPARAM lParam) {
-    DWORD pid;
-    TerminateData* data = reinterpret_cast<TerminateData*>(lParam);
-    GetWindowThreadProcessId(hwnd, &pid);
-    if (pid != data->pid) return true;
-    if (PostMessageA(hwnd, WM_CLOSE, NULL, NULL)) {
-        data->terminated = true;
-    }
-    return true;
 }
 
 static int TerminateProc(PROCESSENTRY32& procEntry, int buildType) {
@@ -57,13 +39,6 @@ static int TerminateProc(PROCESSENTRY32& procEntry, int buildType) {
             //cout << "\n* Injection Success\n";
             return 1;
         }
-    }
-
-    TerminateData result(procEntry.th32ProcessID);
-    EnumWindows(TerminateByHWND, reinterpret_cast<long long>(&result));
-    if (result.terminated) {
-        CloseHandle(handle);
-        return 1;
     }
 
     if (NtSuspendProcess) {
@@ -126,8 +101,9 @@ static void LoopKiller(const char* type, int count, const wchar_t* list[], int l
         cout << "PATH: "; wcout << filePath; cout << '\n';
         if (buildType == BUILD_TYPE_RESUME) {
             cout << "Try To Resume...\n";
-            if (ResumeProc(p)) cout << "\033[1;32mSuccess!\033[0m\n";
-            else cout << "\033[1;31mFailed.\033[0m\n";
+            if (ResumeProc(p)) cout << green << "Success!";
+            else cout << red << "Failed.";
+            cout << white << '\n';
             continue;
         }
         bool killed = false;
@@ -148,7 +124,7 @@ static void LoopKiller(const char* type, int count, const wchar_t* list[], int l
             int result = TerminateProc(p, buildType);
             if (!result) continue;
             if (result == 2) {
-                cout << "\033[1;35mSuspended..\033[0m\n";
+                cout << magenta << "Suspended.." << white << '\n';
                 break;
             }
             if (length != MAX_PATH);
@@ -163,10 +139,15 @@ static void LoopKiller(const char* type, int count, const wchar_t* list[], int l
             p = Find(list[i]);
             if (!p.th32ProcessID) killed = true;
         }
-        cout << "Kill " << (killed ? "\033[1;32mSuccess!" : "\033[1;31mFailed...") << "\033[0m\n";
+        cout << "Kill ";
+        if (killed) cout << green << "Success!";
+        else cout << red << "Failed...";
+        cout << white << '\n';
+
         cout << "Try To Delete Execution File...\n";
-        if (deleted) cout << "\033[1;32mSuccess!\033[0m\n";
-        else cout << "\033[1;31mFailed...\033[0m\n";
+        if (deleted) cout << green << "Success!";
+        else cout << red << "Failed...";
+        cout << white << '\n';
     }
 }
 
