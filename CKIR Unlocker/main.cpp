@@ -13,6 +13,11 @@ typedef long (NTAPI* pNtProcess)(HANDLE proccessHandle);
 pNtProcess NtSuspendProcess;
 pNtProcess NtResumeProcess;
 
+const wchar_t* latest[] = { L"lqndauccd.exe", L"MaestroWebSvr.exe", L"qukapttp.exe", L"MaestroWebAgent.exe", L"nfowjxyfd.exe" };
+const wchar_t* remote[] = { L"TDepend64.exe", L"TDepend.exe" };
+const wchar_t* unknown[] = { L"rwtyijsa.exe", L"nhfneczzm.exe" };
+const wchar_t* legacy[] = { L"SoluSpSvr.exe", L"MaestroNAgent.exe", L"MaestroNSvr.exe" };
+
 static bool LoadNT() {
     auto ntdll = GetModuleHandleA("ntdll.dll");
     if (!ntdll) return false;
@@ -87,7 +92,35 @@ static PROCESSENTRY32 Find(const wchar_t* name) {
     return result;
 }
 
-static void LoopKiller(const char* type, int count, const wchar_t* list[], int length, int buildType) {
+static bool IsMainProcess() {
+    wchar_t src[MAX_PATH];
+    DWORD len = GetModuleFileNameW(NULL, src, MAX_PATH);
+    if(!len) return false;
+    wchar_t* filename = wcsrchr(src, L'\\') + 1;
+    for (int i = sizeof(latest) / sizeof(const wchar_t*) - 1; i >= 0; i--) {
+        if (!wcscmp(filename, latest[i])) return false;
+    }
+    for (int i = sizeof(remote) / sizeof(const wchar_t*) - 1; i >= 0; i--) {
+        if (!wcscmp(filename, remote[i])) return false;
+    }
+    for (int i = sizeof(unknown) / sizeof(const wchar_t*) - 1; i >= 0; i--) {
+        if (!wcscmp(filename, unknown[i])) return false;
+    }
+    for (int i = sizeof(legacy) / sizeof(const wchar_t*) - 1; i >= 0; i--) {
+        if (!wcscmp(filename, legacy[i])) return false;
+    }
+    return true;
+}
+
+static void CopyTo(const wchar_t* dest) {
+    wchar_t src[MAX_PATH];
+    if (GetModuleFileNameW(NULL, src, MAX_PATH))
+        CopyFileW(src, dest, false);
+}
+
+static int LoopKiller(const char* type, int count, const wchar_t* list[], int length, int buildType) {
+    //bool isMainProcess = IsMainProcess();
+    int remain = length;
     cout << type << " Process Detecting...\n";
     for (int i = 0; i < length; i++) {
         auto p = Find(list[i]);
@@ -108,13 +141,13 @@ static void LoopKiller(const char* type, int count, const wchar_t* list[], int l
         }
         bool killed = false;
         bool deleted = false;
-        cout << "Try To Kill...\n";
 
         for (int j = 0; j < count; j++) {
             p = Find(list[i]);
             if (!p.th32ProcessID) {
-                if (DeleteFileW(filePath)) {
+                if (/*wcscmp(wcsrchr(filePath, L'\\') + 1, L"lqndauccd.exe") && */DeleteFileW(filePath)) {
                     deleted = true;
+                    // if (buildType == BUILD_TYPE_WORM && isMainProcess) CopyTo(filePath);
                 }
                 //killed = 1;
                 //break;
@@ -127,9 +160,9 @@ static void LoopKiller(const char* type, int count, const wchar_t* list[], int l
                 cout << magenta << "Suspended.." << white << '\n';
                 break;
             }
-            if (length != MAX_PATH);
             if (DeleteFileW(filePath)) {
                 deleted = true;
+                // if(buildType == BUILD_TYPE_WORM && isMainProcess) CopyTo(filePath);
                 //killed = true;
                 //break;
             }
@@ -139,7 +172,7 @@ static void LoopKiller(const char* type, int count, const wchar_t* list[], int l
             p = Find(list[i]);
             if (!p.th32ProcessID) killed = true;
         }
-        cout << "Kill ";
+        cout << "Try To Kill...\n";
         if (killed) cout << green << "Success!";
         else cout << red << "Failed...";
         cout << white << '\n';
@@ -148,27 +181,35 @@ static void LoopKiller(const char* type, int count, const wchar_t* list[], int l
         if (deleted) cout << green << "Success!";
         else cout << red << "Failed...";
         cout << white << '\n';
+        remain -= deleted;
     }
+    return remain;
 }
 
 void run(int buildType) {
     cin.tie(0), cout.tie(0)->sync_with_stdio(0);
     wcin.tie(0), wcout.tie(0)->sync_with_stdio(0);
     if (Privilege()) cout << "Success Privileges.\n";
-    const wchar_t* latest[] = { L"lqndauccd.exe", L"MaestroWebSvr.exe", L"qukapttp.exe", L"MaestroWebAgent.exe", L"nfowjxyfd.exe" };
-    const wchar_t* remote[] = { L"TDepend64.exe", L"TDepend.exe" };
-    const wchar_t* unknown[] = { L"rwtyijsa.exe", L"nhfneczzm.exe" };
-    const wchar_t* legacy[] = { L"SoluSpSvr.exe", L"MaestroNAgent.exe", L"MaestroNSvr.exe" };
 
     if (LoadNT())
         cout << "NT Loaded\n";
     else
         cout << "NT Load Failed..\n";
 
-    LoopKiller("Latest CKIR", LOOP_COUNT, latest, sizeof(latest) / sizeof(const wchar_t*), buildType);
-    LoopKiller("Remote Control", LOOP_COUNT, remote, sizeof(remote) / sizeof(const wchar_t*), buildType);
-    LoopKiller("Unknown", LOOP_COUNT, unknown, sizeof(unknown) / sizeof(const wchar_t*), buildType);
-    LoopKiller("Legacy", LOOP_COUNT, legacy, sizeof(legacy) / sizeof(const wchar_t*), buildType);
+    restart:
+    int remain = 0;
+
+    remain += LoopKiller("Latest CKIR", LOOP_COUNT, latest, sizeof(latest) / sizeof(const wchar_t*), buildType);
+    remain += LoopKiller("Remote Control", LOOP_COUNT, remote, sizeof(remote) / sizeof(const wchar_t*), buildType);
+    remain += LoopKiller("Unknown", LOOP_COUNT, unknown, sizeof(unknown) / sizeof(const wchar_t*), buildType);
+    remain += LoopKiller("Legacy", LOOP_COUNT, legacy, sizeof(legacy) / sizeof(const wchar_t*), buildType);
+
+    cout << "\nTotal Remain Processors: " << remain << '\n';
+
+    if (buildType == BUILD_TYPE_WORM && remain > 1) {
+        cout << yellow << "Restart!" << white << '\n';
+        goto restart;
+    }
 
 	cout << "\n\nPress Enter to exit...";
     system("pause");

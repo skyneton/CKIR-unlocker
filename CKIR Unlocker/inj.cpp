@@ -13,6 +13,8 @@ typedef FARPROC(WINAPI* PFGETPROCADDRESS) (HMODULE hModule, LPCSTR lpProcName);
 //MessageBoxA()
 typedef void (WINAPI* PF_EXIT) (INT exitCode);
 
+PROC_RtlCreateUserThread RtlCreateUserThread = (PROC_RtlCreateUserThread)GetProcAddress(GetModuleHandleA("ntdll.dll"), "RtlCreateUserThread");
+
 DWORD WINAPI ThreadProc(LPVOID lParam) {
 	PTHREAD_PARAM pParam = (PTHREAD_PARAM)lParam;
 	HMODULE hMod = ((PFLOADLIBRARYA)pParam->pFunc[0])(pParam->szBuf[0]);
@@ -53,8 +55,15 @@ bool InjectCode(HANDLE &hProcess) {
 
 
 	if (!(hThread = CreateRemoteThread(hProcess, NULL, 0, (LPTHREAD_START_ROUTINE)pRemoteBuf[1], pRemoteBuf[0], 0, NULL))) {
-		cout << yellow << "* CreateRemoteThread() fail : err_code=" << (long long)GetLastError() << white << '\n';
-		return false;
+		if (RtlCreateUserThread) {
+			cout << black << "Use Alternative..." << white << '\n';
+			CLIENT_ID cid;
+			RtlCreateUserThread(hProcess, NULL, FALSE, 0, 0, 0, (LPTHREAD_START_ROUTINE)pRemoteBuf[1], pRemoteBuf[0], &hThread, &cid);
+		}
+		if (!hThread) {
+			cout << yellow << "* CreateRemoteThread() fail : err_code=" << (long long)GetLastError() << white << '\n';
+			return false;
+		}
 	}
 
 	WaitForSingleObject(hThread, INFINITE);
