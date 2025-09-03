@@ -2,5 +2,6 @@
 #define BUILD_TYPE_FORCE 1
 #define BUILD_TYPE_RESUME 2
 #define BUILD_TYPE_WORM 3
+#define BUILD_TYPE_LOG_PROC 4
 
 void run(int buildType);

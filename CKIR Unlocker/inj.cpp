@@ -32,7 +32,7 @@ bool InjectCode(HANDLE &hProcess) {
 	param.pFunc[0] = GetProcAddress(hMod, "LoadLibraryA");
 	param.pFunc[1] = GetProcAddress(hMod, "GetProcAddress");
 	strcpy_s(param.szBuf[0], "msvcrt.dll");
-	strcpy_s(param.szBuf[1], "_exit");
+	strcpy_s(param.szBuf[1], "exit");
 	if (!(pRemoteBuf[0] = VirtualAllocEx(hProcess, NULL, dwSize, MEM_COMMIT, PAGE_READWRITE))) {
 		cout << yellow << "* VirtualAllocEx() A fail : err_code=" << (long long)GetLastError() << white << '\n';
 		return false;
