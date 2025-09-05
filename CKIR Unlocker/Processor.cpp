@@ -1,6 +1,43 @@
 #include "Processor.h"
 using namespace std;
 
+BOOL KillProcessorByUserMode(DWORD dwProcessId) {
+	HANDLE hThreadSnap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+	if (hThreadSnap == INVALID_HANDLE_VALUE) {
+		cout << red << "CreateToolhelp32Snapshot failed.\n" << white;
+		return FALSE;
+	}
+
+	THREADENTRY32 te32;
+	te32.dwSize = sizeof(THREADENTRY32);
+
+	if (!Thread32First(hThreadSnap, &te32)) {
+		cout << red << "Thread32First failed.\n" << white;
+		CloseHandle(hThreadSnap);
+		return FALSE;
+	}
+
+	do {
+		if (te32.th32OwnerProcessID == dwProcessId) {
+			HANDLE hThread = OpenThread(THREAD_TERMINATE, FALSE, te32.th32ThreadID);
+			if (hThread != NULL) {
+				TerminateThread(hThread, 0);
+				CloseHandle(hThread);
+			}
+		}
+	} while (Thread32Next(hThreadSnap, &te32));
+
+	CloseHandle(hThreadSnap);
+
+	HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, dwProcessId);
+	if (hProcess != NULL && !InjectCode(hProcess)) {
+		TerminateProcess(hProcess, 0);
+		CloseHandle(hProcess);
+	}
+
+	return TRUE;
+}
+
 static PVOID SearchMemory(PVOID pStartAddress, PVOID pEndAddress, PUCHAR pMemoryData, ULONG ulMemoryDataSize) {
 	PVOID pAddress = NULL;
 	for (PUCHAR i = (PUCHAR)pStartAddress; i < (PUCHAR)pEndAddress; i++) {
@@ -16,6 +53,7 @@ static PVOID SearchMemory(PVOID pStartAddress, PVOID pEndAddress, PUCHAR pMemory
 	return pAddress;
 }
 
+/*
 static PVOID SearchPspTerminateThreadByPointer(PUCHAR pSpecialData, ULONG ulSpecialDataSize) {
 	UNICODE_STRING ustrFuncName;
 	RtlInitUnicodeString(&ustrFuncName, L"PsTerminateSystemThread");
@@ -102,3 +140,4 @@ NTSTATUS KillProcessor(HANDLE hProcessId) {
 	ObDereferenceObject(pEProcess);
 	return STATUS_SUCCESS;
 }
+*/

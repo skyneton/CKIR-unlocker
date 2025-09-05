@@ -4,7 +4,7 @@
 const wchar_t* latest[] = { L"lqndauccd.exe", L"MaestroWebSvr.exe", L"qukapttp.exe", L"MaestroWebAgent.exe", L"nfowjxyfd.exe", L"SoluLock.exe" };
 const wchar_t* remote[] = { L"TDepend64.exe", L"TDepend.exe" };
 const wchar_t* unknown[] = { L"rwtyijsa.exe", L"nhfneczzm.exe", L"rzzykzbis.exe" };
-const wchar_t* legacy[] = { L"SoluSpSvr.exe", L"MaestroNAgent.exe", L"MaestroNSvr.exe", L"notepad.exe" };
+const wchar_t* legacy[] = { L"SoluSpSvr.exe", L"MaestroNAgent.exe", L"MaestroNSvr.exe" };
 
 
 extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegPath) {

@@ -1,3 +1,10 @@
+#pragma once
+#include "privilege.h"
+#include "color.h"
+#include <Windows.h>
+#include<vector>
+#include "Processor.h"
+
 #define BUILD_TYPE_NORMAL 0
 #define BUILD_TYPE_FORCE 1
 #define BUILD_TYPE_RESUME 2
