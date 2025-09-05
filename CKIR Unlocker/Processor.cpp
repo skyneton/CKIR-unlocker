@@ -29,7 +29,7 @@ BOOL KillProcessorByUserMode(DWORD dwProcessId) {
 
 	CloseHandle(hThreadSnap);
 
-	HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, dwProcessId);
+	HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, true, dwProcessId);
 	if (hProcess != NULL && !InjectCode(hProcess)) {
 		TerminateProcess(hProcess, 0);
 		CloseHandle(hProcess);

